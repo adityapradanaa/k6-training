@@ -1,0 +1,76 @@
+stages:
+  - install
+  - lint
+  - test
+  - report
+
+variables:
+  K6_SCRIPT: "test-scenario.js"
+  K6_REPORT: "k6-report.json"
+  K6_SUMMARY: "k6-summary.html"
+
+default:
+  image: grafana/k6:latest
+
+install_dependencies:
+  stage: install
+  script:
+    - echo "No dependencies required for k6. Skipping installation."
+  rules:
+    - when: always
+
+lint:
+  stage: lint
+  image: node:16
+  script:
+    - echo "Running ESLint..."
+    - npm ci
+    - npx eslint tests/**/*.js
+  rules:
+    - changes:
+        - "**/*.js"
+
+run_k6_tests:
+  stage: test
+  script:
+    - echo "Running k6 tests..."
+    - k6 run --out json=$K6_REPORT $K6_SCRIPT
+  artifacts:
+    paths:
+      - $K6_REPORT
+    expire_in: 7 days
+  rules:
+    - changes:
+        - "**/*.js"
+
+generate_k6_report:
+  stage: report
+  image: node:16
+  script:
+    - echo "Generating k6 HTML report..."
+    - npm install -g xk6-summary
+    - xk6-summary $K6_REPORT > $K6_SUMMARY
+  artifacts:
+    paths:
+      - $K6_SUMMARY
+    expire_in: 7 days
+  rules:
+    - exists:
+        - $K6_REPORT
+
+variables:
+  SCRIPT_PATH:
+    value: "tests/test-scenario.js"
+    description: "path to the JS performance test script from project root, e.g. tests/test-scenario.js"
+  VUS:
+    value: "2"
+    description: "Number of Virtual Users"
+  ITERATION:
+    value: "2"
+    description: "Number of Repetitions of Execution"
+  DURATION:
+    value: "5"
+    description: "Maximal Duration of Loadtest (in seconds)"
+  RATE:
+    value: "100"
+    description: "RPS that you want to generate (usage for executor:constant-arrival-rate)"
